@@ -1,0 +1,9 @@
+# BrainProxy 配置示例
+# 复制为 config.yaml 并填入你的配置，或使用 brainproxy setup 命令自动生成
+
+api_key: "sk-your-api-key"
+base_url: "https://dashscope.aliyuncs.com/apps/anthropic"
+port: 8080
+buffer_size: 500
+log_dir: "logs"
+max_log_files: 1000  # 日志文件数量上限，超过自动删除最旧的（0 = 不限制）

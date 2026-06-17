@@ -1,0 +1,109 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '>=1.24'
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Debug environment
+        run: |
+          echo "Go: $(go version)"
+          echo "Node: $(node --version)"
+          echo "npm: $(npm --version)"
+          echo "go.mod contents:"
+          cat go.mod
+
+      - name: Build frontend
+        run: |
+          cd web
+          npm ci
+          npm run build
+
+      - name: Verify frontend build
+        run: |
+          if [ ! -d "web/dist" ]; then
+            echo "web/dist not found after build!"
+            exit 1
+          fi
+          echo "Frontend built successfully:"
+          ls -la web/dist/
+
+      - name: Cross-compile binaries
+        run: |
+          set -ex
+          mkdir -p dist
+          VERSION=${{ github.ref_name }}
+          LD="-s -w -X main.version=$VERSION"
+
+          export CGO_ENABLED=0
+
+          export GOOS=darwin GOARCH=arm64
+          go build -ldflags "$LD" -o dist/brainproxy-darwin-arm64 ./cmd/brainproxy
+
+          export GOOS=darwin GOARCH=amd64
+          go build -ldflags "$LD" -o dist/brainproxy-darwin-amd64 ./cmd/brainproxy
+
+          export GOOS=linux GOARCH=amd64
+          go build -ldflags "$LD" -o dist/brainproxy-linux-amd64 ./cmd/brainproxy
+
+          export GOOS=linux GOARCH=arm64
+          go build -ldflags "$LD" -o dist/brainproxy-linux-arm64 ./cmd/brainproxy
+
+          export GOOS=windows GOARCH=amd64
+          go build -ldflags "$LD" -o dist/brainproxy-windows-amd64.exe ./cmd/brainproxy
+
+          echo "Binaries:"
+          ls -lh dist/
+          file dist/*
+
+      - name: Package releases
+        run: |
+          set -ex
+          # Verify binaries before packaging
+          file dist/brainproxy-darwin-amd64
+          file dist/brainproxy-darwin-arm64
+
+          # Package each platform: binary inside archive is named "brainproxy"
+          for platform in darwin-arm64 darwin-amd64 linux-amd64 linux-arm64; do
+            tmpdir=$(mktemp -d)
+            cp dist/brainproxy-$platform $tmpdir/brainproxy
+            tar czf dist/brainproxy-$platform.tar.gz -C $tmpdir brainproxy
+            rm -rf $tmpdir
+          done
+
+          # Windows gets .exe
+          tmpdir=$(mktemp -d)
+          cp dist/brainproxy-windows-amd64.exe $tmpdir/brainproxy.exe
+          cd $tmpdir && zip $OLDPWD/dist/brainproxy-windows-amd64.zip brainproxy.exe
+          cd $OLDPWD
+          rm -rf $tmpdir
+
+          echo "Packages:"
+          ls -lh dist/*.tar.gz dist/*.zip
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/*.tar.gz
+            dist/*.zip
+          generate_release_notes: true

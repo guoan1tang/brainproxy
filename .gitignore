@@ -1,0 +1,23 @@
+# Binary
+/brainproxy
+/brainproxy.exe
+dist/
+
+# Frontend
+web/dist/
+web/node_modules/
+
+# Request logs (local data)
+logs/
+
+# Config with secrets
+config.yaml
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
